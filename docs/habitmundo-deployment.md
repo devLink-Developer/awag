@@ -1,27 +1,67 @@
 # Despliegue en Habitmundo
 
-Inspección remota: 2 de octubre de 2026, antes de instalar componentes del gateway.
+Fecha: 2 de octubre de 2026. Los seis servicios del gateway están desplegados en `/opt/awag`. El emulador y los envíos reales permanecen pendientes de habilitar KVM y registrar WhatsApp manualmente.
 
-## Estado actual
+## Instalación y verificación
 
-El servidor usa Ubuntu 24.04 x86_64 y tiene Docker Compose. El despliegue del gateway **no se ha ejecutado** por dos bloqueos comprobados:
+El servidor usa Ubuntu 24.04 x86_64 y Docker Compose. Se instalaron API, PostgreSQL, Redis, Appium, worker y dispatcher. Las imágenes construidas y probadas en desarrollo se transfirieron por SSH y se verificaron con SHA-256 antes de cargarlas. El runtime Python corresponde al commit `8d104f6`; `REVISION` identifica el snapshot de código y configuración instalado.
 
-- El filesystem raíz tiene 24 GiB, está al 100% y no informa espacio disponible. No permite instalar imágenes, SDK, AVD ni almacenamiento persistente de forma fiable.
-- `/dev/kvm` no existe y la CPU virtual no expone `vmx` ni `svm`. Que el VPS esté alojado sobre un hipervisor KVM no implica que permita aceleración KVM dentro del VPS.
+- `.env` generado directamente en el servidor con secretos nuevos y permisos `600`; almacenamiento privado y volúmenes persistentes.
+- Migración Alembic aplicada e instancia persistente con `ADB_SERIAL=emulator-5556`, idioma español y debug desactivado.
+- Override `docker-compose.habitmundo.yml`: límites de memoria, logs de 10 MiB con tres archivos, `traefik.enable=false` y reinicio `unless-stopped` para los seis servicios.
+- API `/health` `200` con PostgreSQL y Redis accesibles; Appium `/status` con `ready=true`.
+- Autenticación obligatoria (`401` sin token), métricas protegidas, OpenAPI disponible y rutas debug ausentes (`404`).
+- Listeners exclusivamente en `127.0.0.1` para API 8000, Appium 4723, PostgreSQL 5432 y Redis 6379.
+- Worker y dispatcher en ejecución: la comprobación publicada fue procesada y la instancia informa `OFFLINE` con fecha fresca, porque no existe Android arrancado.
 
-El servidor tiene 2 vCPU, 3.8 GiB de RAM total y aproximadamente 1.1 GiB disponible al inspeccionarlo. Varios servicios previos ya estaban degradados. Antes de añadir el emulador, también se debe dimensionar memoria y CPU para el conjunto de aplicaciones.
+No se crearon mensajes de prueba en el servidor ni se realizaron envíos reales.
 
-No se borraron datos, no se modificaron servicios existentes y no se copiaron credenciales de acceso al repositorio.
+## Operación
 
-## Requisitos para completar el despliegue
+En Habitmundo usar ambos archivos Compose para conservar los límites y la exclusión de Traefik:
 
-1. Proporcionar almacenamiento suficiente para Docker, Android SDK, imagen API 35, AVD persistente y medios; resolver la falta de espacio sin borrar datos de aplicaciones existentes.
-2. Habilitar virtualización anidada en el proveedor del VPS y verificar `vmx`/`svm`, `/dev/kvm` y `kvm-ok`, o desplegar el gateway en un host Ubuntu que tenga KVM.
-3. Reservar CPU y RAM para el emulador y los seis servicios del gateway, además de las aplicaciones actuales.
-4. Ejecutar la instalación y el registro manual de WhatsApp del README. No iniciar el worker hasta completar el registro.
+```bash
+cd /opt/awag
+docker compose -f docker-compose.yml -f docker-compose.habitmundo.yml ps
+docker compose -f docker-compose.yml -f docker-compose.habitmundo.yml up -d --no-build --wait
+docker compose -f docker-compose.yml -f docker-compose.habitmundo.yml exec -T gateway-api python -m alembic current
+curl --fail http://127.0.0.1:8000/health
+```
 
-Una vez satisfechos los requisitos, usar `/opt/awag` como carpeta del proyecto y seguir los comandos de [instalación](../README.md#instalación-en-ubuntu). Generar `.env` en el servidor con `python3 scripts/generate-env.py`; no reutilizar secretos de desarrollo.
+Las imágenes ya están instaladas. No compilar nuevas versiones en el VPS sin comprobar capacidad. Para actualizar, generar y probar las imágenes correspondientes al código nuevo y conservar credenciales y volúmenes existentes.
 
-Los puertos requeridos deben estar disponibles: API 8000, Appium 4723, PostgreSQL 5432, Redis 6379 y ADB 5037, todos en loopback. La inspección inicial no encontró listeners en esos puertos. Repetir esa comprobación al desplegar.
+Desde desarrollo, el alias SSH `distromaxi` corresponde a Habitmundo:
 
-Acceso al API después del arranque: túnel SSH al puerto 8000 del servidor. No publicar API, Appium, ADB ni almacenamiento en Internet. La aceptación final debe repetir las comprobaciones HTTP y los E2E reales del README; la publicación del código en GitHub no acredita un despliegue ni un envío de WhatsApp.
+```bash
+ssh -N -L 127.0.0.1:18000:127.0.0.1:8000 distromaxi
+```
+
+Abrir `http://127.0.0.1:18000/docs` y usar el token privado del `.env` del servidor con **Authorize**. El túnel requiere las credenciales SSH existentes; no están incluidas en el repositorio.
+
+## Bloqueo de KVM
+
+La inspección inicial encontró la raíz al 100%. Después de la limpieza del operador había 6.8 GiB libres. Después de instalar el gateway y eliminar su archivo temporal de transporte quedaron aproximadamente 3.7 GiB. No se borraron datos ni se modificaron servicios de otras aplicaciones.
+
+`/dev/kvm` no existe y la CPU virtual no expone `vmx` ni `svm`. Cargar `kvm_intel`, también con `nested=1`, falló con `Operation not supported`; el kernel confirmó **`VMX not supported by CPU`**. El script de arranque rechazó la operación por falta de KVM, sin iniciar una emulación sin aceleración.
+
+Que el VPS corra sobre KVM no permite automáticamente usar KVM dentro de Ubuntu. Se requiere virtualización anidada habilitada en el hipervisor y exposición de las capacidades de CPU a la VM, como describe la [documentación oficial de KVM](https://docs.kernel.org/virt/kvm/x86/running-nested-guests.html). No se puede suplir VMX desde el Ubuntu invitado.
+
+El VPS tiene 2 vCPU y 3.8 GiB de RAM total; después de arrancar los servicios había aproximadamente 0.7 GiB disponible, sin emulador. Hay que dimensionar memoria, CPU y almacenamiento antes de iniciar el AVD junto con las aplicaciones existentes.
+
+## Completar Android y la aceptación
+
+1. Habilitar virtualización anidada desde el hipervisor/proveedor, o usar otro host Ubuntu con KVM. Verificar `vmx`/`svm`, `/dev/kvm` y `kvm-ok`.
+2. Reservar recursos suficientes y mantener libres los puertos 5556/5557 y 8200. **5554 está ocupado por SSH en Habitmundo**.
+3. Detener worker/dispatcher y seguir la instalación Ubuntu/SDK/AVD del README. Arrancar con el puerto configurado:
+
+   ```bash
+   cd /opt/awag
+   docker compose -f docker-compose.yml -f docker-compose.habitmundo.yml stop worker dispatcher
+   EMULATOR_PORT=5556 bash scripts/start-emulator.sh
+   ```
+
+4. Instalar y registrar WhatsApp manualmente, usando `adb -s emulator-5556` en los comandos del README. No se automatizan OTP ni registro.
+5. Volver a iniciar worker/dispatcher con ambos archivos Compose. Esperar salud fresca `WHATSAPP_READY`.
+6. Ejecutar E2E real de los cinco tipos, español e inglés, persistencia y recuperación de fallos.
+
+**La API está desplegada y verificada; ningún envío real de WhatsApp está verificado ni operativo todavía.**

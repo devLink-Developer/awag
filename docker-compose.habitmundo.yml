@@ -1,0 +1,35 @@
+# Apply with: docker compose -f docker-compose.yml -f docker-compose.habitmundo.yml ...
+# Limits protect the shared VPS; they do not provide resources for an Android AVD.
+x-habitmundo-logging: &habitmundo-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+x-habitmundo-labels: &habitmundo-labels
+  traefik.enable: "false"
+
+services:
+  gateway-api:
+    mem_limit: 192m
+    logging: *habitmundo-logging
+    labels: *habitmundo-labels
+  worker:
+    mem_limit: 384m
+    logging: *habitmundo-logging
+    labels: *habitmundo-labels
+  dispatcher:
+    mem_limit: 128m
+    logging: *habitmundo-logging
+    labels: *habitmundo-labels
+  postgres:
+    mem_limit: 256m
+    logging: *habitmundo-logging
+    labels: *habitmundo-labels
+  redis:
+    mem_limit: 128m
+    logging: *habitmundo-logging
+    labels: *habitmundo-labels
+  appium:
+    mem_limit: 384m
+    logging: *habitmundo-logging
+    labels: *habitmundo-labels

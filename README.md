@@ -86,6 +86,8 @@ bash scripts/start-emulator.sh
 
 El script mantiene el proceso en primer plano, comprueba KVM y espera `sys.boot_completed=1`. Para ejecuciones posteriores sin ventana: `bash scripts/start-emulator.sh --headless`. No emplea `-wipe-data`, no borra `/data` y desactiva snapshots conservando `userdata-qemu.img`.
 
+Si el puerto 5554 está ocupado, usar un puerto par disponible y su puerto siguiente para ADB. Por ejemplo: `EMULATOR_PORT=5556 bash scripts/start-emulator.sh`. En ese caso, configurar `ADB_SERIAL=emulator-5556` en `.env` y reemplazar `emulator-5554` por `emulator-5556` en los comandos siguientes. El script acepta puertos pares entre 5554 y 5682.
+
 En otra terminal:
 
 ```bash
@@ -237,5 +239,7 @@ La verificación requiere una nueva burbuja saliente del contenido esperado con 
 - No está implementado soporte completo de ejecución Android en Windows, múltiples números simultáneos, recepción, envíos masivos ni notas de voz.
 
 Consultar [endpoints](docs/endpoints.md), [operación del laboratorio](docs/operations.md) y [verificación ejecutada](docs/verification.md).
+
+El [despliegue en Habitmundo](docs/habitmundo-deployment.md) utiliza `docker-compose.habitmundo.yml` junto con el Compose principal para límites de memoria, rotación de logs y exclusión del proxy compartido. El informe distingue servicios desplegados de la aceptación Android pendiente.
 
 Referencias: [Android Emulator y persistencia](https://developer.android.com/studio/run/emulator-commandline), [Appium UiAutomator2](https://github.com/appium/appium-uiautomator2-driver), [Docker en Ubuntu](https://docs.docker.com/engine/install/ubuntu/), [red del host](https://docs.docker.com/engine/network/drivers/host/), [locks Redis](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/), [click to chat de WhatsApp](https://faq.whatsapp.com/5913398998672934).
