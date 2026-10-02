@@ -1,0 +1,22 @@
+FROM node:22.17.0-bookworm-slim
+ENV ANDROID_HOME=/opt/android JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+    APPIUM_HOME=/opt/appium PATH="/opt/android/platform-tools:/opt/android/build-tools/35.0.0:${PATH}"
+RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jdk-headless curl unzip \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /opt/android/build-tools \
+    && curl -fsSL https://dl.google.com/android/repository/platform-tools_r37.0.1-linux.zip -o /tmp/adb.zip \
+    && echo '477254aa5f903c15cf51001717bdf347fb6b53e0  /tmp/adb.zip' | sha1sum -c - \
+    && unzip -q /tmp/adb.zip -d /opt/android \
+    && curl -fsSL https://dl.google.com/android/repository/build-tools_r35_linux.zip -o /tmp/build-tools.zip \
+    && echo '2cfaa0bbb2336e9ec18ed3ecea84fa2e2af607bc  /tmp/build-tools.zip' | sha1sum -c - \
+    && unzip -q /tmp/build-tools.zip -d /tmp/build-tools \
+    && mv /tmp/build-tools/* /opt/android/build-tools/35.0.0 \
+    && rm /tmp/adb.zip /tmp/build-tools.zip \
+    && npm install -g appium@3.8.0 \
+    && appium driver install uiautomator2@8.7.0
+# UiAutomator2 checks this SDK executable even when the AVD runs on the host.
+RUN curl -fsSL https://dl.google.com/android/repository/emulator-linux_x64-16428233.zip -o /tmp/emulator.zip \
+    && echo 'cd7362ea55dfb86a418958138dc396e74165dd01  /tmp/emulator.zip' | sha1sum -c - \
+    && unzip -q /tmp/emulator.zip -d /opt/android && rm /tmp/emulator.zip
+# Warn-level Appium logs avoid debug wire payloads. Gateway logs carry operation metadata.
+CMD ["appium", "--address", "127.0.0.1", "--port", "4723", "--allow-insecure", "*:session_discovery", "--log-level", "warn", "--log-no-colors"]
