@@ -12,19 +12,19 @@ El servidor usa Ubuntu 24.04 x86_64 y Docker Compose. Se instalaron API, Postgre
 - API `/health` `200` con PostgreSQL y Redis accesibles; Appium `/status` con `ready=true`.
 - Autenticación obligatoria (`401` sin token), métricas protegidas, OpenAPI disponible y rutas debug ausentes (`404`).
 - Listeners exclusivamente en `127.0.0.1` para API 8000, Appium 4723, PostgreSQL 5432 y Redis 6379.
-- Worker y dispatcher en ejecución: la comprobación publicada fue procesada y la instancia informa `OFFLINE` con fecha fresca, porque no existe Android arrancado.
+- En el despliegue base, el worker confirmó `OFFLINE` por ausencia de Android. El resultado actualizado del perfil software se detalla debajo.
 
 No se crearon mensajes de prueba en el servidor ni se realizaron envíos reales.
 
 ## Operación
 
-Para el MVP software usar los tres archivos Compose indicados en [su procedimiento](software-emulation.md#operar-en-habitmundo), incluyendo `docker-compose.software-emulator.yml`. Los comandos siguientes corresponden al despliegue base y sirven para inspeccionar sus servicios:
+Para el MVP software usar los tres archivos Compose indicados en [su procedimiento](software-emulation.md#operar-en-habitmundo), incluyendo `docker-compose.software-emulator.yml`. Los comandos siguientes conservan el perfil software activo:
 
 ```bash
 cd /opt/awag
-docker compose -f docker-compose.yml -f docker-compose.habitmundo.yml ps
-docker compose -f docker-compose.yml -f docker-compose.habitmundo.yml up -d --no-build --wait
-docker compose -f docker-compose.yml -f docker-compose.habitmundo.yml exec -T gateway-api python -m alembic current
+docker compose -f docker-compose.yml -f docker-compose.habitmundo.yml -f docker-compose.software-emulator.yml --profile software-emulator ps
+docker compose -f docker-compose.yml -f docker-compose.habitmundo.yml -f docker-compose.software-emulator.yml up -d --no-build gateway-api worker dispatcher postgres redis appium
+docker compose -f docker-compose.yml -f docker-compose.habitmundo.yml -f docker-compose.software-emulator.yml exec -T gateway-api python -m alembic current
 curl --fail http://127.0.0.1:8000/health
 ```
 
@@ -56,7 +56,15 @@ Se añadieron una partición de datos persistente de 1 GiB y 1 GiB de swap priva
 
 El primer arranque alcanzó el límite de memoria del contenedor y terminó con `OOMKilled=true`. Se desactivó Vulkan, se redujo la frecuencia gráfica, se configuró Android para baja memoria y se limitó la caché TCG. Android también reinició SystemServer por watchdog durante el inicio lento; aplicar el multiplicador de tiempos de hardware permitió completar el arranque. ADB volvió a modo sin root y SELinux permaneció activo.
 
-El AVD confirmó API 35, modo de baja memoria, 768 MiB de RAM configurada, un núcleo y `sys.boot_completed=1`. El contenedor estabilizó su consumo aproximadamente en 1,1 GiB durante las comprobaciones. El arranque observado necesitó unos 16 minutos e incluyó los ajustes manuales de diagnóstico; no constituye una medición de arranque limpio.
+El primer perfil confirmó API 35, modo de baja memoria, 768 MiB de RAM configurada, un núcleo y `sys.boot_completed=1`. El contenedor estabilizó su consumo aproximadamente en 1,1 GiB durante las comprobaciones. El primer arranque observado necesitó unos 16 minutos e incluyó los ajustes manuales de diagnóstico. Después de detener y volver a iniciar el emulador, el arranque limpio tardó unos 9 minutos: inicio a las 19:47:48 UTC y `sys.boot_completed=1` a las 19:56:44 UTC. El bootstrap automático configuró el multiplicador y restauró ADB sin root; la aplicación auxiliar de Appium instalada previamente seguía presente. La pantalla de Ajustes cargó y se capturó, pero el servicio auxiliar de Appium sufrió ANR con 768 MiB. Se ajustó el perfil a 1024 MiB y dos núcleos del invitado, con cuota de 1,5 CPU y límite de 1,75 GiB para el contenedor.
+
+El perfil final de 1024 MiB y dos núcleos completó otro arranque en 7 minutos y 10 segundos: inicio a las 20:19:33 UTC y confirmación a las 20:26:43 UTC. `OOMKilled=false`, usuario `RUNNING_UNLOCKED`, sistema listo y partición persistente conservada.
+
+Se creó una sesión real de UiAutomator2, se leyó el árbol de la interfaz, se capturó la pantalla y se cerró la sesión. La creación inicial tardó varios minutos. El auxiliar Appium instalado es 8.0.9, código 191, igual al APK de la imagen fijada; el perfil lo reutiliza para evitar reinstalaciones y la espera de servicio de 30 segundos que fallaba en esta VM.
+
+Durante la preparación apareció un diálogo ANR de System UI. Se seleccionó **Esperar** bajo los locks de la instancia y se confirmó que el foco volvió al launcher. Este fallo observado y la presión de memoria impiden considerar validada la estabilidad de la UI o los envíos: hace falta aceptación real con WhatsApp instalado y autenticado.
+
+Worker y dispatcher volvieron a iniciarse. Los siete contenedores están activos; la comprobación del worker confirmó estado `ONLINE`, ADB visible, boot completo, Appium accesible y `WHATSAPP_NOT_INSTALLED`, con fecha fresca. Se verificaron nuevamente autenticación, métricas, OpenAPI, debug desactivado y puertos loopback. PostgreSQL conserva cero mensajes y la referencia de sesión Appium quedó vacía; `/appium/sessions` confirmó que no quedó ninguna sesión activa.
 
 Puertos ADB 5037 y emulador 5556/5557 limitados a loopback. La API conservó `/health` disponible. El [procedimiento software](software-emulation.md) describe arranque, límites, bootstrap de timeouts, acceso manual por SSH/scrcpy e instalación de WhatsApp.
 

@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     adb_binary: str = "adb"
     appium_url: str = "http://127.0.0.1:4723"
     system_port: int = 8200
+    appium_skip_settings_app_reinstall: bool = False
     whatsapp_package: str = "com.whatsapp"
     ui_language: str = "es"
     debug_automation: bool = False

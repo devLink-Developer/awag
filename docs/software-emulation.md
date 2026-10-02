@@ -4,7 +4,7 @@ Este perfil experimental ejecuta Android 35 x86_64 mediante QEMU/TCG, con `-acce
 
 En Habitmundo se eligió la imagen **AOSP API 35, revisión 2**, en lugar de Google APIs: el archivo instalado ocupa aproximadamente 1,6 GiB. No incluye Play Store ni servicios de Google. La instalación y el registro de WhatsApp siguen siendo manuales; su compatibilidad debe validarse con el APK oficial.
 
-El perfil limita el emulador a un núcleo, 768 MiB de RAM del invitado, pantalla de 480×800 y 15 Hz. Desactiva Vulkan, snapshots, audio y cámaras. Limita la caché de traducción TCG a 64 MiB. El contenedor tiene un máximo de 1,5 GiB de memoria y 2,5 GiB contando swap; no se reinicia automáticamente después de fallar. El arranque tiene un plazo de 1800 segundos. Estos límites pueden requerir ajustes con WhatsApp instalado.
+El perfil configura el emulador con dos núcleos y 1024 MiB de RAM del invitado, pantalla de 480×800 y 15 Hz. Desactiva Vulkan, snapshots, audio y cámaras. Limita la caché de traducción TCG a 64 MiB. El contenedor dispone de hasta 1,5 CPU compartida entre los núcleos emulados y el renderizado software, y tiene un máximo de 1,75 GiB de memoria y 2,75 GiB contando swap; no se reinicia automáticamente después de fallar. El arranque tiene un plazo de 1800 segundos. Estos límites pueden requerir ajustes con WhatsApp instalado.
 
 El perfil solicita `ro.hw_timeout_multiplier=10` para ampliar las esperas internas de Android en hardware lento. Este ajuste conserva el watchdog con un plazo mayor; no modifica el marcador de envío ni suprime la coordinación del gateway.
 
@@ -67,6 +67,16 @@ sudo systemctl is-active "$task_mount_unit"
 
 El script conserva el original en `default.unpacked` hasta que el operador confirma el montaje persistente. Solo después de verificar la unidad activa y los checksums puede eliminarse esa copia de la imagen SDK. No eliminar `android/avd` ni el archivo SquashFS. En Habitmundo el montaje persistente ya está instalado y la copia original verificada fue retirada.
 
+## Preparar el auxiliar Appium
+
+El perfil software utiliza `APPIUM_SKIP_SETTINGS_APP_REINSTALL=true`. El driver comprueba que `io.appium.settings` existe y reutiliza el APK instalado, evitando reinstalarlo y esperar su servicio en cada conexión. El perfil normal conserva la inicialización automática. En un AVD nuevo, después de completar el arranque y con Appium iniciado, instalar el auxiliar de la misma imagen fijada del driver:
+
+```bash
+docker exec whatsapp-gateway-appium-1 timeout 900s adb -H 127.0.0.1 -P 5037 -s emulator-5556 install -r -g /opt/appium/node_modules/appium-uiautomator2-driver/node_modules/io.appium.settings/apks/settings_apk-debug.apk
+```
+
+Comprobar `Success`. Repetir esta provisión al actualizar el driver y su APK auxiliar; no sustituirlo por otra fuente. Habitmundo ya tiene la versión 8.0.9, código 191, coincidente con el APK de su imagen. Si falta el auxiliar, la sesión Appium falla y debe completarse esta provisión. Este paso instala un componente de Appium; el registro de WhatsApp continúa siendo manual.
+
 ## Instalación y registro manual
 
 Mantener worker/dispatcher detenidos mientras se opera manualmente la UI:
@@ -101,6 +111,6 @@ scrcpy --serial=emulator-5556 --force-adb-forward --port=27183 --video-bit-rate=
 
 Completar personalmente número, verificación y permisos en WhatsApp. Los puertos ADB/emulador permanecen en loopback; no publicarlos en Internet. Una vez terminado, iniciar worker/dispatcher con los tres archivos, esperar salud fresca `WHATSAPP_READY` y ejecutar el procedimiento E2E del README. Las capturas, actividad y envíos reales tienen que verificarse contra el APK instalado.
 
-Los plazos de comandos e instalación Appium pasan a 300 segundos, esperas UI a 180 segundos y confirmación de envío a 600 segundos. El lock tiene TTL de 720 segundos y renovación cada 60 segundos. Se mantienen propiedad del lock, límite de tarea y tratamiento `SEND_OUTCOME_UNKNOWN`; ampliar tiempos no autoriza reenvíos inciertos.
+Los plazos de comandos e instalación Appium pasan a 900 segundos, esperas UI a 180 segundos y confirmación de envío a 600 segundos. El lock tiene TTL de 2100 segundos y renovación cada 60 segundos. La tarea tiene un límite de 3600 segundos y se considera interrumpida después de 3900 segundos. Se mantienen propiedad del lock, límite de tarea y tratamiento `SEND_OUTCOME_UNKNOWN`; ampliar tiempos no autoriza reenvíos inciertos.
 
 Referencias: [opciones y persistencia del emulador](https://developer.android.com/studio/run/emulator-commandline), [implementación del mínimo de datos](https://android.googlesource.com/platform/external/qemu/+/emu-master-dev/android-qemu2-glue/main.cpp), [caché de traducción TCG](https://www.qemu.org/docs/master/system/qemu-manpage.html), [túneles para scrcpy](https://github.com/Genymobile/scrcpy/blob/master/doc/tunnels.md).

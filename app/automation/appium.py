@@ -73,6 +73,7 @@ class AppiumSession:
             "appium:udid": self.instance.adb_serial, "appium:systemPort": self.instance.system_port,
             "appium:remoteAdbHost": self.settings.adb_host, "appium:adbPort": self.settings.adb_port,
             "appium:noReset": True, "appium:fullReset": False, "appium:autoLaunch": False,
+            "appium:skipSettingsAppReinstall": self.settings.appium_skip_settings_app_reinstall,
             "appium:newCommandTimeout": max(45, self.settings.command_timeout_seconds + self.settings.ui_wait_seconds),
             "appium:adbExecTimeout": self.settings.command_timeout_seconds * 1000,
             "appium:uiautomator2ServerReadTimeout": self.settings.command_timeout_seconds * 1000,

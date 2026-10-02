@@ -10,9 +10,10 @@ from app.automation.appium import AppiumSession
 from app.services.errors import GatewayError
 
 
-@pytest.mark.parametrize("command_timeout", [25, 300])
+@pytest.mark.parametrize("command_timeout", [25, 300, 900])
 def test_pinned_client_guard_and_capabilities(settings, command_timeout):
     settings.command_timeout_seconds = command_timeout
+    settings.appium_skip_settings_app_reinstall = command_timeout == 900
     calls = []
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -45,6 +46,7 @@ def test_pinned_client_guard_and_capabilities(settings, command_timeout):
         caps = calls[0][1]["capabilities"]["alwaysMatch"]
         assert caps["appium:noReset"] is True
         assert caps["appium:fullReset"] is False
+        assert caps["appium:skipSettingsAppReinstall"] is (command_timeout == 900)
         assert caps["appium:udid"] == "emulator-5554"
         for name in ("adbExecTimeout", "uiautomator2ServerReadTimeout", "uiautomator2ServerLaunchTimeout",
                      "uiautomator2ServerInstallTimeout", "androidInstallTimeout"):

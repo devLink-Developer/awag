@@ -4,12 +4,12 @@ Fecha: 2 de octubre de 2026. Esta entrega implementa el MVP; la aceptación de l
 
 ## Pruebas ejecutadas
 
-Para el perfil software se añadieron pruebas del instalador por rangos, checksum/CRC, limpieza al alcanzar reserva de disco, traversal, persistencia de AVD y bootstrap Bash (restauración de ADB normal o terminación del proceso propio ante fallos). Las capacidades del cliente Appium se comprobaron para los tiempos estándar y de 300 segundos. Suite sin integración ni E2E: Windows **74 passed, 3 skipped, 10 deselected** y Linux/Python 3.12 **77 passed, 10 deselected**. En Windows, dos skips requieren Bash/Linux y uno es symlink. Las pruebas PostgreSQL/Redis de la entrega base se conservan separadas de estas comprobaciones.
+Para el perfil software se añadieron pruebas del instalador por rangos, checksum/CRC, limpieza al alcanzar reserva de disco, traversal, persistencia de AVD y bootstrap Bash (restauración de ADB normal o terminación del proceso propio ante fallos). Las capacidades del cliente Appium se comprobaron para los tiempos estándar y de 300 segundos. Después de ampliar el perfil a 900 segundos, las cuatro pruebas específicas de capacidades Appium y configuración pasaron nuevamente en Windows y Linux/Python 3.12. Las seis pruebas de bootstrap, capacidades y configuración pasaron también en Linux con los argumentos de 1024 MiB y dos núcleos del perfil final. Suite sin integración ni E2E: Windows **75 passed, 3 skipped, 10 deselected** y Linux/Python 3.12 **78 passed, 10 deselected**, ejecutadas nuevamente con el código final y la reutilización configurable del auxiliar Appium. En Windows, dos skips requieren Bash/Linux y uno es symlink. Las pruebas PostgreSQL/Redis de la entrega base se conservan separadas de estas comprobaciones.
 
 | Entorno o comprobación | Resultado |
 |---|---|
-| Windows, Python 3.13.5, suite completa con PostgreSQL/Redis reales | **76 passed, 2 skipped**, 1 warning; salida 0. |
-| Contenedor Linux, Python 3.12.11, suite completa con PostgreSQL/Redis reales | **77 passed, 1 skipped**, 1 warning; salida 0. |
+| Entrega base: Windows, Python 3.13.5, suite completa con PostgreSQL/Redis reales | **76 passed, 2 skipped**, 1 warning; salida 0. |
+| Entrega base: contenedor Linux, Python 3.12.11, suite completa con PostgreSQL/Redis reales | **77 passed, 1 skipped**, 1 warning; salida 0. |
 | Ruff en Windows y Linux | Correcto. |
 | `pip check` en Windows | Sin dependencias incompatibles. |
 | `docker compose config --quiet` | Correcto. |
@@ -19,7 +19,7 @@ Para el perfil software se añadieron pruebas del instalador por rangos, checksu
 | Appium 3.8.0 y UiAutomator2 8.7.0 | `/status` listo; `/appium/sessions` responde `200` con lista vacía. |
 | `appium driver doctor uiautomator2` dentro de la imagen | Salida 0; cero correcciones obligatorias. |
 | API real desde la imagen final, PostgreSQL/Redis y migración inicial | Smoke HTTP correcto, sin worker Android. |
-| Despliegue real en Habitmundo, Ubuntu 24.04 | Seis servicios en ejecución, migración aplicada y comprobaciones HTTP correctas; instancia Android `OFFLINE`. |
+| Despliegue real en Habitmundo, Ubuntu 24.04 | Despliegue base: seis servicios en ejecución, migración aplicada y HTTP correcto; instancia `OFFLINE`. Después se añadió emulación software; véase el informe actualizado. |
 | Configuración Habitmundo | Puertos API/Appium/PostgreSQL/Redis en loopback, autenticación, debug ausente, exclusión de Traefik, límites de memoria y rotación de logs verificados. |
 | Script de puerto configurable del emulador | `bash -n` correcto en Ubuntu; puertos fuera de rango e impares rechazados. El arranque real se detuvo por KVM ausente. |
 
@@ -33,9 +33,11 @@ El E2E se omitió en ambos entornos porque no se proporcionó un destinatario ni
 
 Para reproducir las comprobaciones unitarias y de integración, utilizar los comandos de [README](../README.md#pruebas). El build y las pruebas Linux se realizaron en Docker Desktop; esto no prueba el arranque de un AVD mediante KVM ni la topología de red del host en Ubuntu.
 
-Posteriormente se desplegaron los servicios del gateway en Ubuntu/Habitmundo y se verificó allí la topología de red del host para API/Appium y los puertos loopback de almacenamiento. El worker produjo un health fresco `OFFLINE` porque no hay Android arrancado. Tanto la carga normal de KVM como `kvm_intel nested=1` fallaron: el kernel informa `VMX not supported by CPU`. Consultar [el informe de despliegue](habitmundo-deployment.md). No se enviaron mensajes reales desde el servidor.
+Posteriormente se desplegaron los servicios del gateway en Ubuntu/Habitmundo y se verificó allí la topología de red del host para API/Appium y los puertos loopback de almacenamiento. Antes de incorporar el perfil software, el worker produjo un health fresco `OFFLINE` por ausencia de Android. Tanto la carga normal de KVM como `kvm_intel nested=1` fallaron: el kernel informa `VMX not supported by CPU`. Consultar [el informe de despliegue](habitmundo-deployment.md). No se enviaron mensajes reales desde el servidor.
 
-## Aceptación pendiente en Ubuntu/KVM
+En el perfil software de Habitmundo se comprobó realmente Android 35 con `-accel off`, 1024 MiB y dos núcleos, arranque en 7 minutos y 10 segundos, persistencia de los auxiliares instalados y ausencia de OOM en ese arranque. Appium creó una sesión UiAutomator2 y devolvió un árbol UI real; se capturó pantalla y se cerró la sesión. El worker confirmó salud fresca `ONLINE` y `WHATSAPP_NOT_INSTALLED`. Los siete servicios, autenticación y puertos loopback pasaron la verificación del servidor. Se observó un ANR de System UI durante la preparación y se despejó mediante Esperar; la estabilidad UI y los envíos siguen pendientes de aceptación. Estas comprobaciones no instalaron ni registraron WhatsApp y no crearon mensajes.
+
+## Aceptación pendiente con WhatsApp autenticado
 
 El operador autorizó posteriormente un MVP con emulación software. Consultar [su procedimiento](software-emulation.md) y [el informe del servidor](habitmundo-deployment.md) para el resultado real del arranque. Los controles de envío y registro manual siguen pendientes hasta disponer de WhatsApp autenticado.
 

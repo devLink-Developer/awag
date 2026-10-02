@@ -50,7 +50,7 @@ rm -f "$BOOT_FIXTURE/running"
     emulator.chmod(0o755)
     env = dict(os.environ, ANDROID_HOME=str(sdk), ANDROID_AVD_HOME=str(avd),
                BOOT_FIXTURE=str(tmp_path), FAIL_BOOTSTRAP="1" if fail_bootstrap else "0",
-               EMULATOR_ACCEL_MODE="off", EMULATOR_MEMORY_MB="768", EMULATOR_BOOT_TIMEOUT_SECONDS="30")
+               EMULATOR_ACCEL_MODE="off", EMULATOR_MEMORY_MB="1024", EMULATOR_CORES="2", EMULATOR_BOOT_TIMEOUT_SECONDS="30")
     script = Path(__file__).resolve().parents[1] / "scripts" / "start-emulator.sh"
     result = subprocess.run(["bash", str(script), "--headless"], env=env, capture_output=True,
                             text=True, timeout=20)
@@ -66,4 +66,6 @@ rm -f "$BOOT_FIXTURE/running"
         args = (tmp_path / "args").read_text().splitlines()
         assert args[args.index("-accel") + 1] == "off"
         assert args[args.index("-tb-size") + 1] == "64"
+        assert args[args.index("-memory") + 1] == "1024"
+        assert args[args.index("-cores") + 1] == "2"
         assert "-wipe-data" not in args
