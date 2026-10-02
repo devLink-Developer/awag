@@ -7,4 +7,5 @@ __pycache__/
 *.db
 data/
 artifacts/
+android/
 .coverage

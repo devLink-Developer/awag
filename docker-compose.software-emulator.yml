@@ -1,0 +1,58 @@
+# Experimental MVP profile, explicitly requested: CPU software emulation, no /dev/kvm.
+x-software-timeouts: &software-timeouts
+  COMMAND_TIMEOUT_SECONDS: "300"
+  LOCK_TTL_SECONDS: "720"
+  LOCK_RENEW_SECONDS: "60"
+  UI_WAIT_SECONDS: "180"
+  SEND_WAIT_SECONDS: "600"
+  TASK_TIME_LIMIT_SECONDS: "1800"
+  STALE_PROCESSING_SECONDS: "2100"
+  HEALTH_INTERVAL_SECONDS: "120"
+
+services:
+  gateway-api:
+    image: whatsapp-gateway:0.1.0-software
+    environment: *software-timeouts
+  worker:
+    image: whatsapp-gateway:0.1.0-software
+    environment: *software-timeouts
+  dispatcher:
+    image: whatsapp-gateway:0.1.0-software
+    environment: *software-timeouts
+  emulator:
+    profiles: [software-emulator]
+    image: whatsapp-gateway-emulator:0.1.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.emulator
+    network_mode: host
+    init: true
+    # A failed experimental boot does not start an unbounded reboot loop.
+    restart: "no"
+    cpus: 1.0
+    mem_limit: 1536m
+    memswap_limit: 2560m
+    stop_grace_period: 90s
+    environment:
+      EMULATOR_ACCEL_MODE: "off"
+      EMULATOR_PORT: "5556"
+      EMULATOR_MEMORY_MB: "768"
+      EMULATOR_CORES: "1"
+      EMULATOR_BOOT_TIMEOUT_SECONDS: "1800"
+    volumes:
+      - ${HOST_ANDROID_DIR:-./android}/system-images:/opt/android/system-images:ro
+      - ${HOST_ANDROID_DIR:-./android}/avd:/data/avd
+      - ${HOST_ANDROID_DIR:-./android}/adb:/root/.android
+    labels:
+      traefik.enable: "false"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "test \"$$(timeout 15s adb -s emulator-5556 shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r')\" = 1"]
+      start_period: 1800s
+      interval: 30s
+      timeout: 20s
+      retries: 3

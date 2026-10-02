@@ -2,3 +2,6 @@
 *.py text eol=lf
 *.yml text eol=lf
 *.md text eol=lf
+Dockerfile* text eol=lf
+*.swap text eol=lf
+*.example text eol=lf

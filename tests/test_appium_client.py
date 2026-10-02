@@ -10,7 +10,9 @@ from app.automation.appium import AppiumSession
 from app.services.errors import GatewayError
 
 
-def test_pinned_client_guard_and_capabilities(settings):
+@pytest.mark.parametrize("command_timeout", [25, 300])
+def test_pinned_client_guard_and_capabilities(settings, command_timeout):
+    settings.command_timeout_seconds = command_timeout
     calls = []
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -44,6 +46,10 @@ def test_pinned_client_guard_and_capabilities(settings):
         assert caps["appium:noReset"] is True
         assert caps["appium:fullReset"] is False
         assert caps["appium:udid"] == "emulator-5554"
+        for name in ("adbExecTimeout", "uiautomator2ServerReadTimeout", "uiautomator2ServerLaunchTimeout",
+                     "uiautomator2ServerInstallTimeout", "androidInstallTimeout"):
+            assert caps[f"appium:{name}"] == command_timeout * 1000
+        assert caps["appium:newCommandTimeout"] >= command_timeout + settings.ui_wait_seconds
         before = len(calls)
         guard.side_effect = GatewayError("LOCK_LOST")
         with pytest.raises(GatewayError):

@@ -16,7 +16,7 @@ Cliente REST → FastAPI → PostgreSQL: Message + Outbox
 
 Docker ejecuta API, worker, dispatcher, PostgreSQL, Redis y Appium. Ubuntu ejecuta KVM, Android SDK, el servidor ADB y el emulador. API/worker/Appium comparten la red del host Linux; Appium, ADB y los puertos publicados de almacenamiento son accesibles solo por loopback. Por eso `.env` usa `http://127.0.0.1:4723`, en lugar del DNS `appium` de una red bridge.
 
-El AVD se ejecuta fuera de Docker. La imagen Appium también contiene el binario SDK del emulador para sus diagnósticos, pero no inicia otro AVD. Appium habilita únicamente `*:session_discovery`, necesario para recuperar sesiones abandonadas mediante `/appium/sessions`; no habilita shell remoto. API escucha en `127.0.0.1:8000`; para acceder desde otro equipo:
+El AVD se ejecuta fuera de Docker en el despliegue con KVM. Para el MVP sin aceleración existe un [perfil experimental en Docker](docs/software-emulation.md), con almacenamiento persistente y plazos ampliados. La imagen Appium contiene el binario SDK del emulador para sus diagnósticos, pero no inicia otro AVD. Appium habilita únicamente `*:session_discovery`, necesario para recuperar sesiones abandonadas mediante `/appium/sessions`; no habilita shell remoto. API escucha en `127.0.0.1:8000`; para acceder desde otro equipo:
 
 ```bash
 ssh -L 8000:127.0.0.1:8000 usuario@servidor-ubuntu
@@ -38,12 +38,14 @@ ssh -L 8000:127.0.0.1:8000 usuario@servidor-ubuntu
 │   ├── services/      # base de datos, archivos, errores y logs JSON
 │   ├── workers/       # tareas, locks y procesamiento
 │   └── main.py
-├── docker/            # Dockerfile y Dockerfile.appium
+├── docker/            # imágenes backend, Appium, emulador y unidad swap
 ├── migrations/        # esquema inicial Alembic
 ├── scripts/           # instalación, arranque, fixtures, tests y E2E
 ├── tests/             # unitarias, PostgreSQL/Redis y E2E opt-in
 ├── docs/              # endpoints, operación y resultados de verificación
 ├── docker-compose.yml
+├── docker-compose.habitmundo.yml
+├── docker-compose.software-emulator.yml
 ├── .env.example
 ├── requirements.txt
 ├── requirements-dev.txt
@@ -85,6 +87,8 @@ bash scripts/start-emulator.sh
 ```
 
 El script mantiene el proceso en primer plano, comprueba KVM y espera `sys.boot_completed=1`. Para ejecuciones posteriores sin ventana: `bash scripts/start-emulator.sh --headless`. No emplea `-wipe-data`, no borra `/data` y desactiva snapshots conservando `userdata-qemu.img`.
+
+Para arrancar explícitamente sin KVM usar `EMULATOR_ACCEL_MODE=off` y seguir [el procedimiento del MVP software](docs/software-emulation.md). La comprobación de KVM sigue activa por defecto; el perfil software usa un plazo de arranque de 1800 segundos y limita recursos.
 
 Si el puerto 5554 está ocupado, usar un puerto par disponible y su puerto siguiente para ADB. Por ejemplo: `EMULATOR_PORT=5556 bash scripts/start-emulator.sh`. En ese caso, configurar `ADB_SERIAL=emulator-5556` en `.env` y reemplazar `emulator-5554` por `emulator-5556` en los comandos siguientes. El script acepta puertos pares entre 5554 y 5682.
 

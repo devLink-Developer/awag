@@ -1,0 +1,12 @@
+[Unit]
+Description=Immutable AOSP image for AWAG software emulation
+ConditionPathExists=/opt/awag/android/aosp-35.sqfs
+
+[Mount]
+What=/opt/awag/android/aosp-35.sqfs
+Where=/opt/awag/android/system-images/android-35/default
+Type=squashfs
+Options=loop,ro
+
+[Install]
+WantedBy=multi-user.target

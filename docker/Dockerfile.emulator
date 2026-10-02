@@ -1,0 +1,9 @@
+FROM whatsapp-gateway-appium:0.1.0
+# Reuse the existing emulator SDK; add only the headless runtime libraries.
+RUN apt-get update && apt-get install -y --no-install-recommends libx11-6 libnss3 libpulse0 libdrm2 \
+    && rm -rf /var/lib/apt/lists/*
+RUN /opt/android/emulator/emulator -no-window -version
+ENV ANDROID_AVD_HOME=/data/avd PATH="/opt/android/platform-tools:/opt/android/emulator:${PATH}"
+COPY scripts/start-emulator.sh /usr/local/bin/start-emulator.sh
+COPY scripts/prepare-software-userdata.sh /usr/local/bin/prepare-software-userdata.sh
+CMD ["bash", "/usr/local/bin/start-emulator.sh", "--headless"]

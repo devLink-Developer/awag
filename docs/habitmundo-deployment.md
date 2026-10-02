@@ -1,10 +1,10 @@
 # Despliegue en Habitmundo
 
-Fecha: 2 de octubre de 2026. Los seis servicios del gateway están desplegados en `/opt/awag`. El emulador y los envíos reales permanecen pendientes de habilitar KVM y registrar WhatsApp manualmente.
+Fecha: 2 de octubre de 2026. El gateway está desplegado en `/opt/awag`. Por petición del operador se preparó un MVP con emulación software: **Android 35 AOSP confirmó `sys.boot_completed=1` con `-accel off`**. La instalación, el registro y los envíos reales de WhatsApp siguen pendientes.
 
 ## Instalación y verificación
 
-El servidor usa Ubuntu 24.04 x86_64 y Docker Compose. Se instalaron API, PostgreSQL, Redis, Appium, worker y dispatcher. Las imágenes construidas y probadas en desarrollo se transfirieron por SSH y se verificaron con SHA-256 antes de cargarlas. El runtime Python corresponde al commit `8d104f6`; `REVISION` identifica el snapshot de código y configuración instalado.
+El servidor usa Ubuntu 24.04 x86_64 y Docker Compose. Se instalaron API, PostgreSQL, Redis, Appium, worker y dispatcher. Las imágenes principales se transfirieron por SSH y se verificaron con SHA-256 antes de cargarlas. El backend software reutiliza sus dependencias y añade el código actualizado de `app/` y `scripts/`; `REVISION` identifica el snapshot de código y configuración instalado.
 
 - `.env` generado directamente en el servidor con secretos nuevos y permisos `600`; almacenamiento privado y volúmenes persistentes.
 - Migración Alembic aplicada e instancia persistente con `ADB_SERIAL=emulator-5556`, idioma español y debug desactivado.
@@ -18,7 +18,7 @@ No se crearon mensajes de prueba en el servidor ni se realizaron envíos reales.
 
 ## Operación
 
-En Habitmundo usar ambos archivos Compose para conservar los límites y la exclusión de Traefik:
+Para el MVP software usar los tres archivos Compose indicados en [su procedimiento](software-emulation.md#operar-en-habitmundo), incluyendo `docker-compose.software-emulator.yml`. Los comandos siguientes corresponden al despliegue base y sirven para inspeccionar sus servicios:
 
 ```bash
 cd /opt/awag
@@ -46,9 +46,21 @@ La inspección inicial encontró la raíz al 100%. Después de la limpieza del o
 
 Que el VPS corra sobre KVM no permite automáticamente usar KVM dentro de Ubuntu. Se requiere virtualización anidada habilitada en el hipervisor y exposición de las capacidades de CPU a la VM, como describe la [documentación oficial de KVM](https://docs.kernel.org/virt/kvm/x86/running-nested-guests.html). No se puede suplir VMX desde el Ubuntu invitado.
 
-El VPS tiene 2 vCPU y 3.8 GiB de RAM total; después de arrancar los servicios había aproximadamente 0.7 GiB disponible, sin emulador. Hay que dimensionar memoria, CPU y almacenamiento antes de iniciar el AVD junto con las aplicaciones existentes.
+El VPS tiene 2 vCPU y 3.8 GiB de RAM total; después de arrancar los servicios había aproximadamente 0.7 GiB disponible, sin emulador. El perfil software limita recursos y utiliza swap. La disponibilidad y el rendimiento deben volver a medirse con WhatsApp instalado.
 
-## Completar Android y la aceptación
+## MVP software autorizado
+
+Se instaló la imagen AOSP API 35 x86_64, revisión 2, verificada contra el checksum oficial. Ocupa aproximadamente 1,6 GiB y no incluye servicios de Google. La preparación de Google APIs se detuvo al alcanzar la reserva de disco; por eso el MVP utiliza esta variante más pequeña.
+
+Se añadieron una partición de datos persistente de 1 GiB y 1 GiB de swap privado del proyecto, con unidad systemd. La imagen de sistema se comprimió en un SquashFS de 707 MiB, verificando SHA-256 de cada archivo antes de retirar la copia sin comprimir; el montaje persistente tiene su propia unidad systemd. Se limpiaron cachés de compilación de Docker; no se eliminaron datos ni contenedores de otras aplicaciones. Con la imagen comprimida y el swap ampliado quedaban aproximadamente 2,4 GiB libres.
+
+El primer arranque alcanzó el límite de memoria del contenedor y terminó con `OOMKilled=true`. Se desactivó Vulkan, se redujo la frecuencia gráfica, se configuró Android para baja memoria y se limitó la caché TCG. Android también reinició SystemServer por watchdog durante el inicio lento; aplicar el multiplicador de tiempos de hardware permitió completar el arranque. ADB volvió a modo sin root y SELinux permaneció activo.
+
+El AVD confirmó API 35, modo de baja memoria, 768 MiB de RAM configurada, un núcleo y `sys.boot_completed=1`. El contenedor estabilizó su consumo aproximadamente en 1,1 GiB durante las comprobaciones. El arranque observado necesitó unos 16 minutos e incluyó los ajustes manuales de diagnóstico; no constituye una medición de arranque limpio.
+
+Puertos ADB 5037 y emulador 5556/5557 limitados a loopback. La API conservó `/health` disponible. El [procedimiento software](software-emulation.md) describe arranque, límites, bootstrap de timeouts, acceso manual por SSH/scrcpy e instalación de WhatsApp.
+
+## Cambiar posteriormente a KVM y completar la aceptación
 
 1. Habilitar virtualización anidada desde el hipervisor/proveedor, o usar otro host Ubuntu con KVM. Verificar `vmx`/`svm`, `/dev/kvm` y `kvm-ok`.
 2. Reservar recursos suficientes y mantener libres los puertos 5556/5557 y 8200. **5554 está ocupado por SSH en Habitmundo**.
@@ -64,4 +76,4 @@ El VPS tiene 2 vCPU y 3.8 GiB de RAM total; después de arrancar los servicios h
 5. Volver a iniciar worker/dispatcher con ambos archivos Compose. Esperar salud fresca `WHATSAPP_READY`.
 6. Ejecutar E2E real de los cinco tipos, español e inglés, persistencia y recuperación de fallos.
 
-**La API está desplegada y verificada; ningún envío real de WhatsApp está verificado ni operativo todavía.**
+**La API está desplegada y Android arrancó sin aceleración; ningún envío real de WhatsApp está verificado todavía.**

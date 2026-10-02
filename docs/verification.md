@@ -4,6 +4,8 @@ Fecha: 2 de octubre de 2026. Esta entrega implementa el MVP; la aceptación de l
 
 ## Pruebas ejecutadas
 
+Para el perfil software se añadieron pruebas del instalador por rangos, checksum/CRC, limpieza al alcanzar reserva de disco, traversal, persistencia de AVD y bootstrap Bash (restauración de ADB normal o terminación del proceso propio ante fallos). Las capacidades del cliente Appium se comprobaron para los tiempos estándar y de 300 segundos. Suite sin integración ni E2E: Windows **74 passed, 3 skipped, 10 deselected** y Linux/Python 3.12 **77 passed, 10 deselected**. En Windows, dos skips requieren Bash/Linux y uno es symlink. Las pruebas PostgreSQL/Redis de la entrega base se conservan separadas de estas comprobaciones.
+
 | Entorno o comprobación | Resultado |
 |---|---|
 | Windows, Python 3.13.5, suite completa con PostgreSQL/Redis reales | **76 passed, 2 skipped**, 1 warning; salida 0. |
@@ -34,6 +36,8 @@ Para reproducir las comprobaciones unitarias y de integración, utilizar los com
 Posteriormente se desplegaron los servicios del gateway en Ubuntu/Habitmundo y se verificó allí la topología de red del host para API/Appium y los puertos loopback de almacenamiento. El worker produjo un health fresco `OFFLINE` porque no hay Android arrancado. Tanto la carga normal de KVM como `kvm_intel nested=1` fallaron: el kernel informa `VMX not supported by CPU`. Consultar [el informe de despliegue](habitmundo-deployment.md). No se enviaron mensajes reales desde el servidor.
 
 ## Aceptación pendiente en Ubuntu/KVM
+
+El operador autorizó posteriormente un MVP con emulación software. Consultar [su procedimiento](software-emulation.md) y [el informe del servidor](habitmundo-deployment.md) para el resultado real del arranque. Los controles de envío y registro manual siguen pendientes hasta disponer de WhatsApp autenticado.
 
 - Instalar SDK y crear/arrancar `WhatsApp_QA` con los scripts entregados; comprobar KVM y almacenamiento persistente.
 - Instalar y registrar WhatsApp manualmente; confirmar que la instancia alcanza `WHATSAPP_READY` con un health fresco.

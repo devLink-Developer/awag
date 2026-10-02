@@ -1,0 +1,8 @@
+[Unit]
+Description=Swap for the AWAG software emulator MVP
+
+[Swap]
+What=/opt/awag/android/swapfile
+
+[Install]
+WantedBy=swap.target
