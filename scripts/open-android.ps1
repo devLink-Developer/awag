@@ -15,7 +15,7 @@ if (!(Test-Path -LiteralPath $adbPath) -or !(Test-Path -LiteralPath $scrcpyPath)
 }
 New-Item -ItemType Directory -Path $clientRoot -Force | Out-Null
 $sshPath = (Get-Command ssh.exe -ErrorAction Stop).Source
-$listeners = @(Get-NetTCPConnection -State Listen -LocalPort 15037,27183 -ErrorAction SilentlyContinue)
+$listeners = @(Get-NetTCPConnection -State Listen -LocalPort 15037 -ErrorAction SilentlyContinue)
 $pidFile = Join-Path $clientRoot 'tunnel.pid'
 if ($listeners.Count -gt 0) {
     if (!(Test-Path -LiteralPath $pidFile)) { throw 'Puertos del tunel ocupados por otro proceso.' }
@@ -23,10 +23,9 @@ if ($listeners.Count -gt 0) {
     $ownedProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $savedPid"
     if (!$ownedProcess -or $ownedProcess.ExecutablePath -ne $sshPath -or
         $ownedProcess.CommandLine -notmatch [regex]::Escape("127.0.0.1:15037:127.0.0.1:5037") -or
-        $ownedProcess.CommandLine -notmatch [regex]::Escape("127.0.0.1:27183:127.0.0.1:27183") -or
+        $ownedProcess.CommandLine -notmatch ('-R\s+' + [regex]::Escape("127.0.0.1:27183:127.0.0.1:27183")) -or
         $ownedProcess.CommandLine -notmatch ('\s' + [regex]::Escape($SshAlias) + '\s*$') -or
-        @($listeners | Where-Object OwningProcess -ne $savedPid).Count -gt 0 -or
-        @($listeners.LocalPort | Sort-Object -Unique).Count -ne 2) {
+        @($listeners | Where-Object OwningProcess -ne $savedPid).Count -gt 0) {
         throw 'Los puertos no pertenecen al tunel de AWAG; no se modificaron.'
     }
 } else {
@@ -34,7 +33,7 @@ if ($listeners.Count -gt 0) {
         '-N', '-o', 'BatchMode=yes', '-o', 'ExitOnForwardFailure=yes',
         '-o', 'ServerAliveInterval=30', '-o', 'ServerAliveCountMax=3',
         '-L', '127.0.0.1:15037:127.0.0.1:5037',
-        '-L', '127.0.0.1:27183:127.0.0.1:27183', $SshAlias
+        '-R', '127.0.0.1:27183:127.0.0.1:27183', $SshAlias
     ) -RedirectStandardError (Join-Path $clientRoot 'tunnel.log')
     Set-Content -LiteralPath $pidFile -Value $tunnel.Id
     $deadline = (Get-Date).AddSeconds(20)
@@ -42,10 +41,10 @@ if ($listeners.Count -gt 0) {
         Start-Sleep -Milliseconds 500
         $tunnel.Refresh()
         if ($tunnel.HasExited) { throw "Fallo el tunel SSH. Consulta $clientRoot\tunnel.log." }
-        $ready = @(Get-NetTCPConnection -State Listen -LocalPort 15037,27183 -ErrorAction SilentlyContinue |
+        $ready = @(Get-NetTCPConnection -State Listen -LocalPort 15037 -ErrorAction SilentlyContinue |
             Where-Object OwningProcess -eq $tunnel.Id)
-    } until ($ready.Count -eq 2 -or (Get-Date) -gt $deadline)
-    if ($ready.Count -ne 2) { throw 'El tunel SSH no abrio ambos puertos a tiempo.' }
+    } until ($ready.Count -eq 1 -or (Get-Date) -gt $deadline)
+    if ($ready.Count -ne 1) { throw 'El tunel SSH no abrio el puerto ADB a tiempo.' }
 }
 $oldAdbSocket = $env:ADB_SERVER_SOCKET
 $oldAdbBinary = $env:ADB
@@ -60,13 +59,28 @@ try {
         Write-Output 'La ventana AWAG_WhatsApp_QA ya esta abierta.'
         return
     }
+    if (@(Get-NetTCPConnection -State Listen -LocalPort 27183 -ErrorAction SilentlyContinue).Count -gt 0) {
+        throw 'El puerto local de scrcpy esta ocupado; no se modifico ese proceso.'
+    }
     $display = Start-Process -FilePath $scrcpyPath -WorkingDirectory $ScrcpyDirectory -PassThru -ArgumentList @(
-        "--serial=$Serial", '--force-adb-forward', '--port=27183', '--no-audio',
+        "--serial=$Serial", '--port=27183', '--no-audio',
         '--video-bit-rate=1M', '--max-fps=5', '--max-size=480',
-        '--no-clipboard-autosync', '--window-title=AWAG_WhatsApp_QA'
+        '--no-clipboard-autosync', '--no-mouse-hover', '--window-title=AWAG_WhatsApp_QA'
     ) -RedirectStandardOutput (Join-Path $clientRoot 'scrcpy-output.log') -RedirectStandardError (Join-Path $clientRoot 'scrcpy-error.log')
     Set-Content -LiteralPath (Join-Path $clientRoot 'scrcpy.pid') -Value $display.Id
-    Write-Output "scrcpy iniciado (PID $($display.Id)). El registro del numero y OTP se hace manualmente."
+    $displayDeadline = (Get-Date).AddSeconds(45)
+    do {
+        Start-Sleep -Milliseconds 500
+        $display.Refresh()
+        if ($display.HasExited) {
+            throw "scrcpy termino antes de abrir la ventana. Consulta $clientRoot\scrcpy-error.log."
+        }
+    } until ($display.MainWindowTitle -eq 'AWAG_WhatsApp_QA' -or (Get-Date) -gt $displayDeadline)
+    if ($display.MainWindowTitle -eq 'AWAG_WhatsApp_QA') {
+        Write-Output "Ventana scrcpy abierta (PID $($display.Id)). El registro del numero y OTP se hace manualmente."
+    } else {
+        Write-Warning "Android sigue preparando el video (PID $($display.Id)). Consulta $clientRoot\scrcpy-output.log; no abras otro cliente."
+    }
 } finally {
     $env:ADB_SERVER_SOCKET = $oldAdbSocket
     $env:ADB = $oldAdbBinary

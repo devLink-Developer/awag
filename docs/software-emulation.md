@@ -111,16 +111,18 @@ El cliente está instalado en `%LOCALAPPDATA%\AWAG\scrcpy-win64-v4.1`. Desde la 
 ./scripts/open-android.ps1
 ```
 
-El script abre un túnel SSH oculto con dos puertos en loopback y una ventana visible `AWAG_WhatsApp_QA`. Utiliza el alias existente `distromaxi`, no guarda credenciales y verifica que los puertos pertenezcan a su proceso antes de reutilizarlos. Si la ventana ya está abierta, no inicia otro cliente. Limita el video a 480 píxeles de alto, 5 FPS y 1 Mbit/s, sin audio ni sincronización automática del portapapeles, para reducir carga durante el registro manual. El túnel permanece abierto al cerrar scrcpy; volver a ejecutar el script reutiliza ese túnel.
+El script abre un túnel SSH oculto y una ventana visible `AWAG_WhatsApp_QA`. ADB utiliza el puerto local 15037 y el video/control utiliza un túnel inverso desde el puerto 27183 del servidor al cliente Windows; ambos extremos escuchan únicamente en loopback. El modo inverso permite esperar el arranque de scrcpy en Android sin las 100 tentativas de 100 ms del modo `--force-adb-forward`, insuficientes en algunos arranques por software. Utiliza el alias existente `distromaxi`, no guarda credenciales y verifica que el listener ADB pertenezca a su proceso antes de reutilizarlo. Si la ventana ya está abierta, no inicia otro cliente. Comprueba hasta 45 segundos que la ventana aparezca y distingue un error de conexión de un video todavía en preparación.
+
+Limita el video a 480 píxeles de alto, 5 FPS y 1 Mbit/s, sin audio ni sincronización automática del portapapeles. Añade `--no-mouse-hover`: solo envía movimientos durante clics/arrastres, evitando eventos de movimiento sin clic que acumulaban retraso en las colas de Android bajo emulación software. Esto conserva clics, arrastres y teclado. El túnel permanece abierto al cerrar scrcpy; volver a ejecutar el script reutiliza ese túnel. No mover el mouse repetidamente ni repetir clics durante una transición lenta.
 
 Para otra instalación, indicar `-ScrcpyDirectory`, `-SshAlias` y `-Serial`. También se puede iniciar manualmente con dos terminales:
 
 ```powershell
-ssh -N -L 127.0.0.1:15037:127.0.0.1:5037 -L 127.0.0.1:27183:127.0.0.1:27183 distromaxi
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:15037:127.0.0.1:5037 -R 127.0.0.1:27183:127.0.0.1:27183 distromaxi
 # Otra terminal con adb y scrcpy en PATH:
 $env:ADB_SERVER_SOCKET = 'tcp:127.0.0.1:15037'
 adb devices
-scrcpy --serial=emulator-5556 --force-adb-forward --port=27183 --video-bit-rate=1M --max-fps=5 --max-size=480 --no-audio --no-clipboard-autosync
+scrcpy --serial=emulator-5556 --port=27183 --video-bit-rate=1M --max-fps=5 --max-size=480 --no-audio --no-clipboard-autosync --no-mouse-hover
 ```
 
 Completar personalmente número, verificación y permisos en WhatsApp desde scrcpy. No se necesita escritorio gráfico de Ubuntu. Los puertos ADB/emulador permanecen en loopback; no publicarlos en Internet. Una vez terminado y cerrada la ventana de operación manual, iniciar worker/dispatcher:
