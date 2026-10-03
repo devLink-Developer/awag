@@ -2,7 +2,7 @@
 
 Este perfil experimental ejecuta Android 35 x86_64 mediante QEMU/TCG, con `-accel off`, sin `/dev/kvm`. Se habilitó por petición del operador. El despliegue habitual con KVM sigue disponible. El rendimiento y los tiempos E2E deben medirse en el servidor real.
 
-En Habitmundo se eligió la imagen **AOSP API 35, revisión 2**, en lugar de Google APIs: el archivo instalado ocupa aproximadamente 1,6 GiB. No incluye Play Store ni servicios de Google. La instalación y el registro de WhatsApp siguen siendo manuales; su compatibilidad debe validarse con el APK oficial.
+En Habitmundo se eligió la imagen **AOSP API 35, revisión 2**, en lugar de Google APIs: el archivo instalado ocupa aproximadamente 1,6 GiB. No incluye Play Store ni servicios de Google. Se verificaron la instalación y la apertura del APK oficial; el registro y la aceptación de los envíos reales siguen pendientes.
 
 El perfil configura el emulador con dos núcleos y 1024 MiB de RAM del invitado, pantalla de 480×800 y 15 Hz. Desactiva Vulkan, snapshots, audio y cámaras. Limita la caché de traducción TCG a 64 MiB. El contenedor dispone de hasta 1,5 CPU compartida entre los núcleos emulados y el renderizado software, y tiene un máximo de 1,75 GiB de memoria y 2,75 GiB contando swap; no se reinicia automáticamente después de fallar. El arranque tiene un plazo de 1800 segundos. Estos límites pueden requerir ajustes con WhatsApp instalado.
 
@@ -98,6 +98,10 @@ docker compose -f docker-compose.yml -f docker-compose.habitmundo.yml -f docker-
 ```
 
 Comprobar que la instalación responde `Success`; el APK debe soportar la ABI del emulador. No instalar APK de terceros ni automatizar OTP. Este procedimiento de instalación no implica que el registro ni los envíos hayan sido verificados.
+
+El 2 de octubre de 2026 se instaló **WhatsApp 2.26.39.71**, paquete `com.whatsapp`, desde el enlace APK de la página oficial. Se verificaron la firma con `apksigner`, las ABI x86/x86_64 y el SHA-256 de la copia local y remota: `c4260c7c569c19267fd33ee33b6241fadbee55e3bcfceb3ee151012801368dbb`. Android confirmó `Session installed` y se comprobó la pantalla de bienvenida real en `com.whatsapp/.registration.app.EULA`. El primer inicio explícito tardó aproximadamente 122 segundos. Esto verifica instalación y apertura; no verifica registro, selectores de envío ni E2E.
+
+La pantalla inicial muestra un aviso de ROM personalizada, porque esta imagen AOSP no es un teléfono certificado. El operador debe leer y cerrar ese aviso manualmente. La pantalla comienza en inglés: elegir español antes de registrar para coincidir con `UI_LANGUAGE=es`, y configurar también el idioma Android según el README. No se introdujo ningún número ni OTP y worker/dispatcher permanecen detenidos durante esta preparación.
 
 Para controlar la pantalla desde Windows, instalar el ZIP oficial de [scrcpy para Windows](https://github.com/Genymobile/scrcpy/blob/master/doc/windows.md). En esta instalación se utiliza **scrcpy 4.1**, con su cliente ADB **37.0.0**, conectado al servidor ADB **37.0.1**; ambos usan el protocolo ADB 1.0.41. El ZIP se verificó contra el SHA-256 publicado en la versión oficial.
 
